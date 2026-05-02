@@ -12,9 +12,15 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -25,6 +31,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.mywishlistapp.data.Wish
+import kotlinx.coroutines.launch
 
 @Composable
 fun AddEditDetailView(
@@ -32,6 +40,25 @@ fun AddEditDetailView(
     viewModel: WishViewModel,
     navController: NavController
 ) {
+    val snackMessage = remember {
+        mutableStateOf("")
+    }
+
+    // Composable内で使えるCoroutineScopeを取得している
+    // 画面専用のCoroutine実行場所を作る
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember {
+        SnackbarHostState()
+    }
+    if (id != 0L) {
+        val wish = viewModel.getAWishById(id).collectAsState(initial = Wish(0L, "", ""))
+        viewModel.wishTitleState = wish.value.title
+        viewModel.wishDescriptionState = wish.value.description
+    } else {
+        viewModel.wishTitleState = ""
+        viewModel.wishDescriptionState = ""
+    }
+
     Scaffold(
         topBar = { 
             AppBarView(
@@ -42,6 +69,9 @@ fun AddEditDetailView(
                     navController.navigateUp()
                 }
             )
+        },
+        snackbarHost = {
+            SnackbarHost(hostState = snackbarHostState)
         }
     ) {
         Column(
@@ -70,9 +100,34 @@ fun AddEditDetailView(
             Button(
                 onClick = {
                     if (viewModel.wishTitleState.isNotEmpty() && viewModel.wishDescriptionState.isNotEmpty()) {
-                        // TODO UpdateWish
+                        if (id != 0L) {
+                            // UpdateWish
+                            viewModel.updateWish(
+                                Wish(
+                                    id = id,
+                                    title = viewModel.wishTitleState.trim(),
+                                    description = viewModel.wishDescriptionState.trim()
+                                )
+                            )
+                            snackMessage.value = "Wish has been updated"
+                        } else {
+                            // AddWish
+                            viewModel.addWish(
+                                Wish(
+                                    title = viewModel.wishTitleState.trim(),
+                                    description = viewModel.wishDescriptionState.trim()
+                                )
+                            )
+                            snackMessage.value = "Wish has been created"
+                        }
                     } else {
-                        // TODO AddWish
+                        snackMessage.value = "Enter fields for to create a wish"
+                    }
+                    // scope.launch: 非同期処理を実行している
+                    scope.launch {
+                        // showSnackbarがsuspend関数であるため
+                        snackbarHostState.showSnackbar(snackMessage.value)
+                        navController.navigateUp()
                     }
                 }
             ) {
